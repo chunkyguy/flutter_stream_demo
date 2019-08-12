@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'widget_event.dart';
 
 void main() => runApp(MyApp());
 
@@ -44,17 +46,11 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
@@ -94,18 +90,69 @@ class _MyHomePageState extends State<MyHomePage> {
             Text(
               'You have pushed the button this many times:',
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.display1,
-            ),
+            StreamBuilder(
+                stream: _controller.viewModelStream,
+                builder: (BuildContext context,
+                    AsyncSnapshot<MyHomePageViewModel> snapshot) {
+                  String data = '';
+                  if (snapshot.hasError) {
+                    data = 'Error: ${snapshot.error.toString()}';
+                  }
+
+                  switch (snapshot.connectionState) {
+                    case ConnectionState.none:
+                    case ConnectionState.waiting:
+                      data = '0';
+                      break;
+                    case ConnectionState.active:
+                    case ConnectionState.done:
+                      data = '${snapshot.data.counter}';
+                      break;
+                  }
+
+                  return Text(
+                    data,
+                    style: Theme.of(context).textTheme.display1,
+                  );
+                })
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
+        onPressed: () =>
+            _controller.eventHandler.handle(event: MyHomePageEvent.increment),
         tooltip: 'Increment',
         child: Icon(Icons.add),
       ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
+
+  final _controller = MyHomePageController();
+}
+
+class MyHomePageEvent extends WidgetEvent {
+  MyHomePageEvent._(this.value);
+  static final increment = MyHomePageEvent._(0);
+  final int value;
+}
+
+class MyHomePageViewModel {
+  MyHomePageViewModel({@required this.counter});
+  final int counter;
+}
+
+class MyHomePageController {
+  MyHomePageController() {
+    _eventController.listen(
+            (e) => _viewModelStream.add(MyHomePageViewModel(counter: ++_counter)));
+  }
+  void dispose() {
+    _eventController.dispose();
+  }
+  Stream<MyHomePageViewModel> get viewModelStream => _viewModelStream.stream;
+  WidgetEventHandler<MyHomePageEvent> get eventHandler =>
+      _eventController.eventHandler;
+  int _counter = 0;
+  final _eventController = WidgetEventController<MyHomePageEvent>();
+  final _viewModelStream = StreamController<MyHomePageViewModel>();
 }
